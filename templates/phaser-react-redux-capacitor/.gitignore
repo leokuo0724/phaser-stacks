@@ -1,0 +1,9 @@
+node_modules
+dist
+*.local
+.DS_Store
+*.tsbuildinfo
+
+# Capacitor native platforms — generate with `pnpm cap:add:ios` / `pnpm cap:add:android`
+/ios
+/android

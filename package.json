@@ -1,0 +1,27 @@
+{
+  "name": "phaser-stacks",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Production-grade starter templates for building full game products with web frameworks + Phaser. Each template is standalone and copy-pasteable.",
+  "license": "MIT",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "dev:react-redux": "pnpm --filter phaser-react-redux dev",
+    "dev:react-redux-capacitor": "pnpm --filter phaser-react-redux-capacitor dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "format": "pnpm -r format"
+  },
+  "keywords": [
+    "phaser",
+    "react",
+    "redux",
+    "game",
+    "template",
+    "starter",
+    "vite"
+  ]
+}

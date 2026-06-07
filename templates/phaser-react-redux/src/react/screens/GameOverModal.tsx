@@ -1,0 +1,39 @@
+import { emitter } from "~/shared/event-bus";
+import { selectHighScore, selectScore } from "~/store/game/selectors";
+import { quitToMenu, startGame } from "~/store/game/slice";
+import { useAppDispatch, useAppSelector } from "~/store/hooks";
+
+import { Button } from "../ui/Button";
+
+export function GameOverModal() {
+  const dispatch = useAppDispatch();
+  const score = useAppSelector(selectScore);
+  const highScore = useAppSelector(selectHighScore);
+  const isBest = score > 0 && score >= highScore;
+
+  const handlePlayAgain = () => {
+    dispatch(startGame());
+    emitter.emit("ui:start");
+  };
+
+  const handleMenu = () => {
+    dispatch(quitToMenu());
+    emitter.emit("ui:quit");
+  };
+
+  return (
+    <div className="overlay">
+      <div className="panel panel--center">
+        <h2 className="title title--sm">Time!</h2>
+        <p className="score-big">{score}</p>
+        <p className="subtitle">
+          {isBest ? "New best!" : `Best: ${highScore}`}
+        </p>
+        <Button onClick={handlePlayAgain}>Play again</Button>
+        <Button variant="ghost" onClick={handleMenu}>
+          Menu
+        </Button>
+      </div>
+    </div>
+  );
+}
