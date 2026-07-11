@@ -2,6 +2,8 @@ import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 
 import { comboMultiplier, Difficulty, ROUND_SECONDS } from "~/shared/rules";
 
+import { readHighScore } from "../middleware/persist-high-score";
+
 export type GameStatus = "idle" | "playing" | "paused" | "over";
 
 export interface GameState {
@@ -18,7 +20,7 @@ const initialState: GameState = {
   status: "idle",
   score: 0,
   timeLeft: ROUND_SECONDS,
-  highScore: 0,
+  highScore: readHighScore(),
   difficulty: "normal",
   combo: 0,
 };

@@ -29,6 +29,8 @@ export class XrayScene extends Phaser.Scene {
   private labels: Phaser.GameObjects.Text[] = [];
   /** Scratch rectangle so `getBounds` allocates nothing per object per frame. */
   private readonly bounds = new Phaser.Geom.Rectangle();
+  /** Set once `handleToggle` has run at least once, from the sync reply below. */
+  private syncApplied = false;
 
   constructor() {
     super(SCENE_KEYS.XRAY);
@@ -41,9 +43,16 @@ export class XrayScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.cleanup);
     this.events.once(Phaser.Scenes.Events.DESTROY, this.cleanup);
 
-    // Start dormant; React tells us the real state in response to the sync request.
-    this.scene.sleep();
+    // React's `debug:xray-sync` listener is normally already mounted by the time this
+    // runs, so this reply arrives synchronously and `handleToggle` (below) is the single
+    // place that puts the scene to sleep or wakes it — calling `sleep()` here too would
+    // queue a second sleep op that warns once the first has already applied.
     emitter.emit("debug:xray-sync");
+
+    // Fallback for the rare case nothing answered synchronously (e.g. React hasn't
+    // mounted the listener yet): default to dormant so we still cost nothing until the
+    // real value arrives.
+    if (!this.syncApplied) this.scene.sleep();
   }
 
   update() {
@@ -77,8 +86,10 @@ export class XrayScene extends Phaser.Scene {
 
   private handleToggle = ({ enabled }: { enabled: boolean }) => {
     // wake()/sleep() queue an operation for the next scene step rather than applying it
-    // now, so we call them unconditionally: if this fires during create() (the boot-time
-    // sync reply), the queued sleep() then wake() resolve in order and the scene ends awake.
+    // now, so calling them here (rather than eagerly in create()) keeps exactly one such
+    // op queued per toggle — including the boot-time sync reply, which is the only place
+    // the scene's initial sleep/wake actually gets requested.
+    this.syncApplied = true;
     if (enabled) {
       this.scene.wake();
       this.scene.bringToTop();
