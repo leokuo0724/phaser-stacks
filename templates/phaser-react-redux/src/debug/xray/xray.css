@@ -18,10 +18,15 @@
 }
 
 /* Give otherwise-static targets a containing block for their chip. Elements that are
-   already positioned (.hud, MainMenu's .panel--center) anchor the chip themselves. */
+   already positioned (.hud, MainMenu's .panel--center) anchor the chip themselves.
+   top/left must be reset here: .panel--center carries top/left 50% offsets that are
+   inert while it sits static inside .overlay, but would kick in (and shove the modal
+   off-centre) the moment we make it relative. */
 :root[data-xray="on"] .btn[data-xray-label],
 :root[data-xray="on"] .overlay .panel[data-xray-label] {
   position: relative;
+  top: auto;
+  left: auto;
 }
 
 :root[data-xray="on"] [data-xray-label]::after {
