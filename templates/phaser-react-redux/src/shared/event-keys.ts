@@ -7,6 +7,7 @@
  * Naming convention encodes direction:
  *   ui:*    → fired by React, handled by Phaser (control signals)
  *   game:*  → fired by Phaser, handled by React (notifications)
+ *   debug:* → the X-Ray tooling (both directions); see src/debug/xray/
  */
 export type GameEvents = {
   // UI → Phaser
@@ -16,6 +17,14 @@ export type GameEvents = {
   "ui:quit": undefined;
 
   // Phaser → UI
-  "game:hit": { x: number; y: number; points: number };
+  //   points — the score actually awarded (base × combo multiplier)
+  //   combo  — the length of the current consecutive-hit run (1-based)
+  "game:hit": { x: number; y: number; points: number; combo: number };
   "game:over": undefined;
+
+  // Debug (X-Ray mode). React owns the toggle state; the toggle signal travels the bus
+  // instead of a global, so the debug feature itself demonstrates the contract
+  // (docs/architecture.md §9).
+  "debug:xray": { enabled: boolean }; // React → Phaser: turn the canvas overlay on/off
+  "debug:xray-sync": undefined; //        Phaser → React: XrayScene is ready, resend state
 };

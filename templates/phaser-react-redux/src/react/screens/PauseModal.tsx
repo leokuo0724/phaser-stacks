@@ -19,7 +19,7 @@ export function PauseModal() {
 
   return (
     <div className="overlay">
-      <div className="panel panel--center">
+      <div className="panel panel--center" data-xray-label="PauseModal">
         <h2 className="title title--sm">Paused</h2>
         <Button onClick={handleResume}>Resume</Button>
         <Button variant="ghost" onClick={handleQuit}>

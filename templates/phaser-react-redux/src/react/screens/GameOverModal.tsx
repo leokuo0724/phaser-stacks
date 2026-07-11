@@ -23,7 +23,7 @@ export function GameOverModal() {
 
   return (
     <div className="overlay">
-      <div className="panel panel--center">
+      <div className="panel panel--center" data-xray-label="GameOverModal">
         <h2 className="title title--sm">Time!</h2>
         <p className="score-big">{score}</p>
         <p className="subtitle">

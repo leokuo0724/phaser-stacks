@@ -25,6 +25,14 @@ deliberately tiny — the point is the **architecture**, not the gameplay.
   (`ui:start`, `game:hit`, …).
 - 60fps data (sprite positions, tweens, timers) **stays inside Phaser** and never touches
   Redux.
+- **Juice, code-only (zero image/audio assets):** particle bursts + camera-shake +
+  squash-and-stretch + pooled score pops live in the Phaser scene
+  ([`game/scenes/game-scene.ts`](src/game/scenes/game-scene.ts),
+  [`game/juice/`](src/game/juice)); a drifting starfield in a sibling
+  [`background-scene.ts`](src/game/scenes/background-scene.ts); a Web-Audio synth shared by
+  both layers ([`shared/audio/`](src/game/../shared/audio)); and a **combo** system whose
+  count lives in Redux and pulses in the HUD. All tunables sit in
+  [`shared/rules.ts`](src/shared/rules.ts).
 
 See [`../../docs/architecture.md`](../../docs/architecture.md) for the full rationale.
 
@@ -40,15 +48,26 @@ src/
 │   ├── game-config.ts       #   Phaser.Game config (parent injected by React)
 │   ├── constants.ts         #   scene + texture keys
 │   ├── scenes/
-│   │   ├── boot-scene.ts    #   where asset preload lives (texture generated here)
-│   │   └── game-scene.ts    #   spawn loop, hit detection, juice — owns 60fps state
+│   │   ├── boot-scene.ts        #   asset preload (target + spark textures generated here)
+│   │   ├── background-scene.ts  #   drifting starfield, rendered below GAME
+│   │   ├── game-scene.ts        #   spawn loop, hit detection, juice — owns 60fps state
+│   │   └── xray-scene.ts        #   X-Ray: orange bounds around live display objects
+│   ├── juice/               #   particle burst, pooled score pops, hit-colour palette
 │   └── managers/
 │       └── store-manager.ts #   THE BRIDGE: the only file game code uses to touch Redux
 │
 ├── react/                   # ── REACT: the product shell ──
 │   ├── PhaserCanvas.tsx     #   owns the Phaser.Game lifecycle (create/destroy)
-│   ├── screens/             #   MainMenu / Hud / PauseModal / GameOverModal / HitFeedback
-│   └── ui/Button.tsx
+│   ├── screens/             #   MainMenu / Hud / PauseModal / GameOverModal
+│   ├── hooks/usePulse.ts    #   brief "pop" when a HUD number changes
+│   └── ui/                  #   Button / MuteButton
+│
+├── debug/xray/              # ── X-RAY: the architecture-debug overlay ──
+│   ├── Xray.tsx             #   owns the on/off state; mounts chip + panels
+│   ├── XrayEventLog.tsx     #   live event-bus log (colour-coded by direction)
+│   ├── XrayStatePanel.tsx   #   live Redux game slice, flashes on change
+│   ├── constants.ts         #   layer accent colours shared with the Phaser scene
+│   └── ...                  #   chip + hooks
 │
 ├── store/                   # ── REDUX: single source of truth ──
 │   ├── index.ts             #   configureStore + RootState/AppDispatch types
@@ -60,17 +79,43 @@ src/
 └── shared/                  # ── FRAMEWORK-AGNOSTIC CONTRACT ──
     ├── event-bus.ts         #   the mitt instance (reused verbatim by Vue/Zustand variants)
     ├── event-keys.ts        #   typed event names + payloads
-    └── rules.ts             #   pure gameplay tuning, imported by both store and scene
+    ├── audio/               #   dependency-free Web-Audio synth + named SFX (both layers)
+    └── rules.ts             #   pure gameplay tuning + juice magnitudes, shared both ways
 ```
 
 ## The data flow in one tap
 
 1. **Start** (UI) → `dispatch(startGame())` then `emitter.emit("ui:start")`.
 2. `GameScene` hears `ui:start`, reads `difficulty` via the bridge, starts its timers.
-3. Tap a target (canvas) → scene `dispatch(addScore())` + `emitter.emit("game:hit")`.
-4. The HUD re-renders the score from Redux; `HitFeedback` floats a `+N` from the event.
+3. Tap a target (canvas) → scene `dispatch(registerHit())` + `emitter.emit("game:hit")`.
+4. The HUD re-renders the score/combo from Redux; the scene fires the particle burst and a
+   pooled `+N` pop on the canvas from the same moment.
 5. Countdown hits 0 → scene `dispatch(endGame())` + `emitter.emit("game:over")` → the UI
    shows the game-over screen because `status === "over"`.
+
+## X-Ray Mode — make the architecture visible
+
+The boundaries this template is about are normally invisible. **X-Ray mode** turns them on:
+press **`x`** (or tap the **X-RAY** chip in the corner, or load with **`?xray=1`**) and the
+four moving parts light up, each in its layer's colour.
+
+<!-- TODO: xray.gif -->
+
+| Colour | Layer | What you see |
+| --- | --- | --- |
+| **Blue** | React (DOM) | An outline + name chip on every UI component (`Hud`, `MainMenu`, `Button`, …). |
+| **Orange** | Phaser (canvas) | A bounding box + type label around every live display object (`Image(target)`). |
+| **Neutral** | Redux (store) | A panel of the game slice's values (`status / score / timeLeft / …`) that flashes on change. |
+| — | Event bus | A live log of every `mitt` event, coloured by direction: `ui:*` blue, `game:*` orange. |
+
+Each colour maps to one architecture layer, so a glance shows you which layer owns what and —
+in the event log — exactly which messages cross the boundary and in which direction.
+
+The toggle itself rides the architecture it illustrates: React owns the on/off state and
+publishes it as a typed **`debug:xray`** event on the bus; the Phaser `XrayScene` listens and
+wakes or sleeps. No globals cross the boundary. When off, the DOM outlines are inert CSS and
+the scene sleeps, so X-Ray costs nothing until you switch it on. See
+[`../../docs/architecture.md`](../../docs/architecture.md) §9.
 
 ## Swapping the state library
 

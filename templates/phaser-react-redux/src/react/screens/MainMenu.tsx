@@ -19,7 +19,7 @@ export function MainMenu() {
   };
 
   return (
-    <div className="panel panel--center">
+    <div className="panel panel--center" data-xray-label="MainMenu">
       <h1 className="title">Popper</h1>
       <p className="subtitle">
         Tap the targets. 30 seconds. A demo of the React + Phaser + Redux split.

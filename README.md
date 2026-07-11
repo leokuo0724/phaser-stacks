@@ -59,6 +59,19 @@ Every template implements the **same three contracts**, regardless of framework:
 Keep those three boundaries clean and you can swap the state library or even the UI
 framework without touching the game core.
 
+### Seeing the boundaries: X-Ray mode
+
+The boundaries above are the whole point — and normally invisible. The
+[`phaser-react-redux`](./templates/phaser-react-redux) template ships an **X-Ray mode**
+(press **`x`**, tap the corner chip, or load with **`?xray=1`**) that draws each layer in its
+own colour: **blue** outlines on every React component, **orange** bounding boxes on every live
+Phaser object, a **neutral** panel of the Redux state, and a live event-bus log colour-coded by
+direction. It's both a teaching aid and a genuine debugging tool — the toggle itself travels the
+event bus (`debug:xray`) rather than a global, so the feature demonstrates the very contract it
+reveals. See [`docs/architecture.md`](./docs/architecture.md) §9.
+
+<!-- TODO: xray.gif -->
+
 ---
 
 ## Templates
