@@ -1,4 +1,5 @@
 import {
+  selectCombo,
   selectDifficulty,
   selectHighScore,
   selectScore,
@@ -22,6 +23,7 @@ export function XrayStatePanel() {
   const timeLeft = useAppSelector(selectTimeLeft);
   const highScore = useAppSelector(selectHighScore);
   const difficulty = useAppSelector(selectDifficulty);
+  const combo = useAppSelector(selectCombo);
 
   return (
     <aside className="xray-panel xray-state" aria-label="Redux game state">
@@ -35,6 +37,7 @@ export function XrayStatePanel() {
       <dl className="xray-state__rows">
         <StateRow label="status" value={status} />
         <StateRow label="score" value={score} />
+        <StateRow label="combo" value={combo} />
         <StateRow label="timeLeft" value={timeLeft} />
         <StateRow label="highScore" value={highScore} />
         <StateRow label="difficulty" value={difficulty} />

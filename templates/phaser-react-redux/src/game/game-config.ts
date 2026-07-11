@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 
+import { BackgroundScene } from "./scenes/background-scene";
 import { BootScene } from "./scenes/boot-scene";
 import { GameScene } from "./scenes/game-scene";
 import { XrayScene } from "./scenes/xray-scene";
@@ -11,11 +12,12 @@ import { XrayScene } from "./scenes/xray-scene";
  */
 export const gameConfig: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
-  backgroundColor: "#0e1116",
+  backgroundColor: "#070b14",
   scale: {
     mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  // BootScene (index 0) auto-starts; it launches GameScene, then the XrayScene overlay.
-  scene: [BootScene, GameScene, XrayScene],
+  // Scene *list order* is render order (first = bottom). BootScene (index 0) auto-starts and
+  // launches the rest: BackgroundScene renders below GameScene, XrayScene above it.
+  scene: [BootScene, BackgroundScene, GameScene, XrayScene],
 };

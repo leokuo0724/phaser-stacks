@@ -17,7 +17,9 @@ export type GameEvents = {
   "ui:quit": undefined;
 
   // Phaser → UI
-  "game:hit": { x: number; y: number; points: number };
+  //   points — the score actually awarded (base × combo multiplier)
+  //   combo  — the length of the current consecutive-hit run (1-based)
+  "game:hit": { x: number; y: number; points: number; combo: number };
   "game:over": undefined;
 
   // Debug (X-Ray mode). React owns the toggle state; the toggle signal travels the bus

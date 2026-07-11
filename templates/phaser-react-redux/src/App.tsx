@@ -1,7 +1,6 @@
 import { Xray } from "~/debug/xray/Xray";
 import { PhaserCanvas } from "~/react/PhaserCanvas";
 import { GameOverModal } from "~/react/screens/GameOverModal";
-import { HitFeedback } from "~/react/screens/HitFeedback";
 import { Hud } from "~/react/screens/Hud";
 import { MainMenu } from "~/react/screens/MainMenu";
 import { PauseModal } from "~/react/screens/PauseModal";
@@ -24,7 +23,6 @@ export default function App() {
       {/* top layer: the UI overlay (pointer-events transparent except its children) */}
       <div className="ui-layer">
         {(status === "playing" || status === "paused") && <Hud />}
-        <HitFeedback />
 
         {status === "idle" && <MainMenu />}
         {status === "paused" && <PauseModal />}

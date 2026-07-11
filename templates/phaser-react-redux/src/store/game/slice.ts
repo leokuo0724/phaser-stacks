@@ -1,6 +1,6 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 
-import { Difficulty, ROUND_SECONDS } from "~/shared/rules";
+import { comboMultiplier, Difficulty, ROUND_SECONDS } from "~/shared/rules";
 
 export type GameStatus = "idle" | "playing" | "paused" | "over";
 
@@ -10,6 +10,8 @@ export interface GameState {
   timeLeft: number;
   highScore: number;
   difficulty: Difficulty;
+  /** Length of the current consecutive-hit run; 0 when idle (docs/architecture.md §3). */
+  combo: number;
 }
 
 const initialState: GameState = {
@@ -18,6 +20,7 @@ const initialState: GameState = {
   timeLeft: ROUND_SECONDS,
   highScore: 0,
   difficulty: "normal",
+  combo: 0,
 };
 
 /**
@@ -39,9 +42,24 @@ export const gameSlice = createSlice({
       state.status = "playing";
       state.score = 0;
       state.timeLeft = ROUND_SECONDS;
+      state.combo = 0;
     },
-    addScore: (state, action: PayloadAction<number>) => {
-      state.score += action.payload;
+    /**
+     * Record one hit. The scene owns the *timing* (whether the combo window is still open);
+     * this reducer stays the authority on the *score*, applying the combo curve so the
+     * multiplier lives with the rest of the pure rules rather than in the scene.
+     */
+    registerHit: (
+      state,
+      action: PayloadAction<{ base: number; combo: number }>,
+    ) => {
+      const { base, combo } = action.payload;
+      state.combo = combo;
+      state.score += base * comboMultiplier(combo);
+    },
+    /** The combo window lapsed, or a tap hit nothing. */
+    resetCombo: (state) => {
+      state.combo = 0;
     },
     tick: (state) => {
       if (state.status !== "playing") return;
@@ -61,6 +79,7 @@ export const gameSlice = createSlice({
       state.status = "idle";
       state.score = 0;
       state.timeLeft = ROUND_SECONDS;
+      state.combo = 0;
     },
   },
 });
@@ -68,7 +87,8 @@ export const gameSlice = createSlice({
 export const {
   setDifficulty,
   startGame,
-  addScore,
+  registerHit,
+  resetCombo,
   tick,
   pauseGame,
   resumeGame,
