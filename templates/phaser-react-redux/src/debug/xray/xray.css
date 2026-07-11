@@ -1,0 +1,265 @@
+/**
+ * X-Ray mode styling (docs/architecture.md §9). Two parts:
+ *   1. DOM layer outlines — inert until `:root[data-xray="on"]`, so zero cost when off.
+ *   2. The chip + panels — the toggle affordance and the two DOM visualisations.
+ *
+ * Colours come from the --xray-* tokens in global.css (one accent per architecture layer).
+ */
+
+:root {
+  --xray-font: ui-monospace, "SF Mono", "Menlo", "Consolas", monospace;
+}
+
+/* ---- 1. React layer outlines (blue) ------------------------------------ */
+
+:root[data-xray="on"] [data-xray-label] {
+  outline: 1px solid var(--xray-react);
+  outline-offset: -1px;
+}
+
+/* Give otherwise-static targets a containing block for their chip. Elements that are
+   already positioned (.hud, MainMenu's .panel--center) anchor the chip themselves. */
+:root[data-xray="on"] .btn[data-xray-label],
+:root[data-xray="on"] .overlay .panel[data-xray-label] {
+  position: relative;
+}
+
+:root[data-xray="on"] [data-xray-label]::after {
+  content: attr(data-xray-label);
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: translateY(-100%);
+  padding: 1px 5px;
+  font-family: var(--xray-font);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.5;
+  color: #06131f;
+  background: var(--xray-react);
+  border-radius: 4px 4px 4px 0;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* The HUD hugs the top edge, so its chip would clip off-screen — sit it just inside. */
+:root[data-xray="on"] .hud[data-xray-label]::after {
+  transform: none;
+  border-radius: 0 0 4px 0;
+}
+
+/* ---- 2. Shared panel chrome ------------------------------------------- */
+
+.xray-panel {
+  position: fixed;
+  z-index: 15;
+  pointer-events: auto;
+  overflow: hidden;
+  font-family: var(--xray-font);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--color-text);
+  background: rgba(14, 17, 22, 0.82);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+}
+.xray-panel__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-dim);
+  border-bottom: 1px solid var(--color-border);
+}
+.xray-panel__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.xray-panel__dot--phaser {
+  background: var(--xray-phaser);
+}
+.xray-panel__dot--store {
+  background: var(--xray-store);
+}
+
+/* ---- Redux state panel (neutral, left edge) --------------------------- */
+
+.xray-state {
+  left: 12px;
+  top: 84px;
+  width: min(230px, 42vw);
+}
+.xray-state__rows {
+  margin: 0;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.xray-state__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 7px;
+  border-left: 2px solid var(--xray-store);
+  border-radius: 0 6px 6px 0;
+}
+.xray-state__key {
+  color: var(--color-text-dim);
+}
+.xray-state__value {
+  color: var(--color-text);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.xray-state__row.is-flash {
+  animation: xray-flash 600ms var(--ease-out-expo);
+}
+@keyframes xray-flash {
+  from {
+    background: rgba(76, 159, 240, 0.45);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+/* ---- Event bus log (right edge) --------------------------------------- */
+
+.xray-log {
+  right: 12px;
+  top: 84px;
+  bottom: 64px;
+  width: min(300px, 46vw);
+  display: flex;
+  flex-direction: column;
+}
+.xray-log__list {
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.xray-log__empty {
+  padding: 6px;
+  color: var(--color-text-dim);
+  font-style: italic;
+}
+.xray-log__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 1px 8px;
+  padding: 3px 8px;
+  background: rgba(255, 255, 255, 0.025);
+  border-left: 2px solid var(--xray-store);
+  border-radius: 0 6px 6px 0;
+  animation: xray-log-in 220ms var(--ease-out-expo);
+}
+.xray-log__time {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: var(--color-text-dim);
+}
+.xray-log__type {
+  font-weight: 700;
+}
+.xray-log__payload {
+  width: 100%;
+  color: var(--color-text-dim);
+}
+.xray-log__row--react {
+  border-left-color: var(--xray-react);
+}
+.xray-log__row--react .xray-log__type {
+  color: var(--xray-react);
+}
+.xray-log__row--phaser {
+  border-left-color: var(--xray-phaser);
+}
+.xray-log__row--phaser .xray-log__type {
+  color: var(--xray-phaser);
+}
+.xray-log__row--store {
+  border-left-color: var(--xray-store);
+}
+.xray-log__row--store .xray-log__type {
+  color: var(--xray-store);
+}
+@keyframes xray-log-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+/* ---- The toggle chip (always visible, subtle until on) ---------------- */
+
+.xray-chip {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 20;
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  font-family: var(--xray-font);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--color-text-dim);
+  background: rgba(14, 17, 22, 0.7);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition:
+    color 140ms ease,
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+.xray-chip:hover {
+  color: var(--color-text);
+  border-color: var(--xray-react);
+}
+.xray-chip:focus-visible {
+  outline: 2px solid var(--xray-react);
+  outline-offset: 2px;
+}
+.xray-chip__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-text-dim);
+  transition:
+    background-color 140ms ease,
+    box-shadow 140ms ease;
+}
+.xray-chip.is-on {
+  color: var(--color-text);
+  border-color: var(--xray-react);
+}
+.xray-chip.is-on .xray-chip__dot {
+  background: var(--xray-react);
+  box-shadow: 0 0 8px var(--xray-react);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xray-state__row.is-flash,
+  .xray-log__row {
+    animation: none;
+  }
+}

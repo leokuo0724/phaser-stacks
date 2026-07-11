@@ -41,7 +41,8 @@ src/
 │   ├── constants.ts         #   scene + texture keys
 │   ├── scenes/
 │   │   ├── boot-scene.ts    #   where asset preload lives (texture generated here)
-│   │   └── game-scene.ts    #   spawn loop, hit detection, juice — owns 60fps state
+│   │   ├── game-scene.ts    #   spawn loop, hit detection, juice — owns 60fps state
+│   │   └── xray-scene.ts    #   X-Ray: orange bounds around live display objects
 │   └── managers/
 │       └── store-manager.ts #   THE BRIDGE: the only file game code uses to touch Redux
 │
@@ -49,6 +50,13 @@ src/
 │   ├── PhaserCanvas.tsx     #   owns the Phaser.Game lifecycle (create/destroy)
 │   ├── screens/             #   MainMenu / Hud / PauseModal / GameOverModal / HitFeedback
 │   └── ui/Button.tsx
+│
+├── debug/xray/              # ── X-RAY: the architecture-debug overlay ──
+│   ├── Xray.tsx             #   owns the on/off state; mounts chip + panels
+│   ├── XrayEventLog.tsx     #   live event-bus log (colour-coded by direction)
+│   ├── XrayStatePanel.tsx   #   live Redux game slice, flashes on change
+│   ├── constants.ts         #   layer accent colours shared with the Phaser scene
+│   └── ...                  #   chip + hooks
 │
 ├── store/                   # ── REDUX: single source of truth ──
 │   ├── index.ts             #   configureStore + RootState/AppDispatch types
@@ -71,6 +79,30 @@ src/
 4. The HUD re-renders the score from Redux; `HitFeedback` floats a `+N` from the event.
 5. Countdown hits 0 → scene `dispatch(endGame())` + `emitter.emit("game:over")` → the UI
    shows the game-over screen because `status === "over"`.
+
+## X-Ray Mode — make the architecture visible
+
+The boundaries this template is about are normally invisible. **X-Ray mode** turns them on:
+press **`x`** (or tap the **X-RAY** chip in the corner, or load with **`?xray=1`**) and the
+four moving parts light up, each in its layer's colour.
+
+<!-- TODO: xray.gif -->
+
+| Colour | Layer | What you see |
+| --- | --- | --- |
+| **Blue** | React (DOM) | An outline + name chip on every UI component (`Hud`, `MainMenu`, `Button`, …). |
+| **Orange** | Phaser (canvas) | A bounding box + type label around every live display object (`Image(target)`). |
+| **Neutral** | Redux (store) | A panel of the game slice's values (`status / score / timeLeft / …`) that flashes on change. |
+| — | Event bus | A live log of every `mitt` event, coloured by direction: `ui:*` blue, `game:*` orange. |
+
+Each colour maps to one architecture layer, so a glance shows you which layer owns what and —
+in the event log — exactly which messages cross the boundary and in which direction.
+
+The toggle itself rides the architecture it illustrates: React owns the on/off state and
+publishes it as a typed **`debug:xray`** event on the bus; the Phaser `XrayScene` listens and
+wakes or sleeps. No globals cross the boundary. When off, the DOM outlines are inert CSS and
+the scene sleeps, so X-Ray costs nothing until you switch it on. See
+[`../../docs/architecture.md`](../../docs/architecture.md) §9.
 
 ## Swapping the state library
 

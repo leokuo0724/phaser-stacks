@@ -179,3 +179,39 @@ So "going native" doesn't fork the design — it adds **one middleware and one b
 subscriber**. The bridge, scenes, and screens are untouched. The native projects
 (`ios/`, `android/`) are generated on demand (`npx cap add …`) and git-ignored, so the
 template still clones-and-runs as pure web. See the template README for build/run steps.
+
+## 9. X-Ray mode — the architecture, made visible
+
+Everything above is a set of _invisible_ contracts. **X-Ray mode** is a debug/teaching
+overlay that draws them, and it is built to be exemplary template code rather than a demo
+hack: it obeys the same boundaries it illustrates. It lives in `src/debug/xray/` (React +
+shared constants) plus one Phaser scene (`src/game/scenes/xray-scene.ts`).
+
+It renders four things, one accent colour per layer:
+
+| Colour | Layer | Visualisation |
+| --- | --- | --- |
+| Blue | React (DOM) | An outline + component-name chip on each UI element. Pure CSS, driven by a `data-xray` attribute and `data-xray-label` attributes — **zero runtime cost when off**. |
+| Orange | Phaser (canvas) | A `XrayScene` running above `GameScene` draws a bounding box + type label around each live display object, once per frame while enabled. |
+| Neutral | Redux (store) | A panel of the game slice's values, subscribed through the same typed selectors the UI uses; rows flash on change. |
+| — | Event bus | A side panel subscribed to the `mitt` wildcard, streaming events colour-coded by direction (`ui:*` blue, `game:*` orange). |
+
+**The toggle travels the architecture it debugs.** React owns the on/off state (set by the
+`x` key, the corner chip, or `?xray=1`) and publishes it as a typed event on the bus rather
+than a global:
+
+```ts
+"debug:xray": { enabled: boolean }; // React → Phaser: the toggle signal
+"debug:xray-sync": undefined;       // Phaser → UI: XrayScene is ready, resend state
+```
+
+The `XrayScene` listens for `debug:xray` and wakes or sleeps accordingly — a sleeping scene
+is neither updated nor rendered, so the canvas overlay also costs nothing when off. Because
+the scene mounts _after_ React, it emits `debug:xray-sync` once on boot to ask React to
+re-broadcast the current value; that is what makes a `?xray=1` deep-link light up the canvas
+overlay too. This is deliberate: the debug feature is itself a worked example of §4 (the
+store, read via selectors) and §5 (the event bus, used in both directions).
+
+The layer accents are the one thing both sides must agree on, so they have a single source:
+`src/debug/xray/constants.ts` holds the hex values Phaser draws with, and `global.css`
+mirrors them as `--xray-*` custom properties for the DOM.

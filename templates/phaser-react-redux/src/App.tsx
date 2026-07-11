@@ -1,3 +1,4 @@
+import { Xray } from "~/debug/xray/Xray";
 import { PhaserCanvas } from "~/react/PhaserCanvas";
 import { GameOverModal } from "~/react/screens/GameOverModal";
 import { HitFeedback } from "~/react/screens/HitFeedback";
@@ -28,6 +29,9 @@ export default function App() {
         {status === "idle" && <MainMenu />}
         {status === "paused" && <PauseModal />}
         {status === "over" && <GameOverModal />}
+
+        {/* debug/teaching overlay: press `x` or tap the chip (docs/architecture.md §9) */}
+        <Xray />
       </div>
     </>
   );

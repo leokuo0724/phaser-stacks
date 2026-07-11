@@ -12,5 +12,5 @@ export function Button({
   ...rest
 }: ButtonProps) {
   const cls = ["btn", `btn--${variant}`, className].filter(Boolean).join(" ");
-  return <button className={cls} {...rest} />;
+  return <button className={cls} data-xray-label="Button" {...rest} />;
 }

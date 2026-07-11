@@ -15,6 +15,9 @@ export class BootScene extends Phaser.Scene {
   create() {
     this.createTargetTexture();
     this.scene.start(SCENE_KEYS.GAME);
+    // The X-Ray overlay runs in parallel, above GAME. It puts itself to sleep until
+    // enabled, so it costs nothing until a developer switches it on (docs §9).
+    this.scene.launch(SCENE_KEYS.XRAY);
   }
 
   private createTargetTexture() {

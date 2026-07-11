@@ -2,6 +2,7 @@ import Phaser from "phaser";
 
 import { BootScene } from "./scenes/boot-scene";
 import { GameScene } from "./scenes/game-scene";
+import { XrayScene } from "./scenes/xray-scene";
 
 /**
  * Phaser config. `parent` is intentionally omitted here — <PhaserCanvas /> supplies the
@@ -15,5 +16,6 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
     mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [BootScene, GameScene],
+  // BootScene (index 0) auto-starts; it launches GameScene, then the XrayScene overlay.
+  scene: [BootScene, GameScene, XrayScene],
 };

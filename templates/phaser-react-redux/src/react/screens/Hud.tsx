@@ -18,7 +18,7 @@ export function Hud() {
   };
 
   return (
-    <div className="hud">
+    <div className="hud" data-xray-label="Hud">
       <div className="hud__stat">
         <span className="hud__label">Score</span>
         <span className="hud__value">{score}</span>
