@@ -1,8 +1,10 @@
+import { playUiClick } from "~/shared/audio/sfx";
 import { emitter } from "~/shared/event-bus";
 import { comboMultiplier } from "~/shared/rules";
 import {
   selectCombo,
   selectScore,
+  selectStatus,
   selectTimeLeft,
 } from "~/store/game/selectors";
 import { pauseGame } from "~/store/game/slice";
@@ -21,6 +23,7 @@ export function Hud() {
   const score = useAppSelector(selectScore);
   const timeLeft = useAppSelector(selectTimeLeft);
   const combo = useAppSelector(selectCombo);
+  const status = useAppSelector(selectStatus);
 
   const scorePulse = usePulse(score);
   const comboPulse = usePulse(combo);
@@ -28,6 +31,13 @@ export function Hud() {
   const handlePause = () => {
     dispatch(pauseGame());
     emitter.emit("ui:pause");
+  };
+
+  // Q4: fire a pure verb at Phaser. No state changes — just a moment on the bus, which the
+  // scene turns into a confetti burst. Only meaningful mid-round, so disabled otherwise.
+  const handleCelebrate = () => {
+    playUiClick();
+    emitter.emit("ui:celebrate");
   };
 
   return (
@@ -45,6 +55,15 @@ export function Hud() {
       <div className="hud__center">
         <div className="hud__controls">
           <MuteButton />
+          <button
+            className="icon-btn"
+            onClick={handleCelebrate}
+            disabled={status !== "playing"}
+            aria-label="Celebrate"
+            data-xray-label="CelebrateButton"
+          >
+            🎉
+          </button>
           <button className="icon-btn" onClick={handlePause} aria-label="Pause">
             ❚❚
           </button>

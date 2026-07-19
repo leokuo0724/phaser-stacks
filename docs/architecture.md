@@ -82,11 +82,11 @@ StoreManager.instance.subscribe(onChange); //      subscribe
 
 The same three operations map cleanly onto every stack — only the syntax changes:
 
-| Operation | Redux Toolkit         | Zustand                  | Pinia                  |
-| --------- | --------------------- | ------------------------ | ---------------------- |
-| read      | `select(selector)`    | `store.getState().x`     | `store.x`              |
-| write     | `dispatch(action())`  | `store.getState().fn()`  | `store.fn()`           |
-| subscribe | `store.subscribe(fn)` | `store.subscribe(fn)`    | `store.$subscribe(fn)` |
+| Operation | Redux Toolkit         | Zustand                 | Pinia                  |
+| --------- | --------------------- | ----------------------- | ---------------------- |
+| read      | `select(selector)`    | `store.getState().x`    | `store.x`              |
+| write     | `dispatch(action())`  | `store.getState().fn()` | `store.fn()`           |
+| subscribe | `store.subscribe(fn)` | `store.subscribe(fn)`   | `store.$subscribe(fn)` |
 
 The UI side never uses the bridge; it binds with the framework's idiomatic API
 (`useSelector` / `storeToRefs` / `useStore`) so components re-render correctly.
@@ -99,7 +99,7 @@ and immediately clear it). Instead, use a tiny typed pub/sub:
 
 ```ts
 emitter.emit("game:hit", { x, y }); // Phaser → UI (play a sound, pop an animation)
-emitter.emit("ui:start");           // UI → Phaser (begin spawning)
+emitter.emit("ui:start"); // UI → Phaser (begin spawning)
 ```
 
 Direction is by convention in the event name:
@@ -112,12 +112,18 @@ checked contract.
 
 ### State vs. event bus — how to decide
 
-| Question | Use |
-| --- | --- |
-| Does the UI need to **render** this continuously? | **State** |
+| Question                                             | Use           |
+| ---------------------------------------------------- | ------------- |
+| Does the UI need to **render** this continuously?    | **State**     |
 | Is it a **one-off moment** that triggers a reaction? | **Event bus** |
-| Would I set a flag and immediately reset it? | **Event bus** |
-| Should it survive a reload / be persisted? | **State** |
+| Would I set a flag and immediately reset it?         | **Event bus** |
+| Should it survive a reload / be persisted?           | **State**     |
+
+Cross that "kind" choice with **direction** and you get a 2×2 — every boundary message is one
+of four quadrants. The template demonstrates all four (see the README's _Four cross-boundary
+patterns_ table): Phaser → React as state (`registerHit` → HUD) or as an event (`game:hit` →
+combo toast); React → Phaser as state (a difficulty change the scene reads via `subscribe`) or
+as an event (`ui:celebrate` → a confetti burst with no noun to store).
 
 ## 6. Putting it together — a frame in the life of a tap
 
@@ -165,10 +171,10 @@ identical regardless of framework or state library, so the recipe below ports to
 The key insight: the two native integrations land on the **same connection points you
 already have** — no new concepts.
 
-| Native capability | Where it plugs in | Mirrors |
-| --- | --- | --- |
-| **Persistence** (high score) | a **store middleware** (`store/middleware/persist-high-score.ts`) — a cross-cutting concern (§3) | the "save on change" you'd add anyway |
-| **Haptics** (buzz on hit) | an **event-bus subscriber** (`native/feedback.ts`) reacting to `game:hit` (§5) | `HitFeedback` — the visual pop, now a haptic pop |
+| Native capability            | Where it plugs in                                                                                | Mirrors                                          |
+| ---------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------ |
+| **Persistence** (high score) | a **store middleware** (`store/middleware/persist-high-score.ts`) — a cross-cutting concern (§3) | the "save on change" you'd add anyway            |
+| **Haptics** (buzz on hit)    | an **event-bus subscriber** (`native/feedback.ts`) reacting to `game:hit` (§5)                   | `HitFeedback` — the visual pop, now a haptic pop |
 
 Both use Capacitor plugins that have **web implementations** (Preferences → `localStorage`,
 Haptics → `navigator.vibrate`), so the browser demo keeps working and the same code simply
@@ -189,12 +195,12 @@ shared constants) plus one Phaser scene (`src/game/scenes/xray-scene.ts`).
 
 It renders four things, one accent colour per layer:
 
-| Colour | Layer | Visualisation |
-| --- | --- | --- |
-| Blue | React (DOM) | An outline + component-name chip on each UI element. Pure CSS, driven by a `data-xray` attribute and `data-xray-label` attributes — **zero runtime cost when off**. |
-| Orange | Phaser (canvas) | A `XrayScene` running above `GameScene` draws a bounding box + type label around each live display object, once per frame while enabled. |
-| Neutral | Redux (store) | A panel of the game slice's values, subscribed through the same typed selectors the UI uses; rows flash on change. |
-| — | Event bus | A side panel subscribed to the `mitt` wildcard, streaming events colour-coded by direction (`ui:*` blue, `game:*` orange). |
+| Colour  | Layer           | Visualisation                                                                                                                                                       |
+| ------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Blue    | React (DOM)     | An outline + component-name chip on each UI element. Pure CSS, driven by a `data-xray` attribute and `data-xray-label` attributes — **zero runtime cost when off**. |
+| Orange  | Phaser (canvas) | A `XrayScene` running above `GameScene` draws a bounding box + type label around each live display object, once per frame while enabled.                            |
+| Neutral | Redux (store)   | A panel of the game slice's values, subscribed through the same typed selectors the UI uses; rows flash on change.                                                  |
+| —       | Event bus       | A side panel subscribed to the `mitt` wildcard, streaming events colour-coded by direction (`ui:*` blue, `game:*` orange).                                          |
 
 **The toggle travels the architecture it debugs.** React owns the on/off state (set by the
 `x` key, the corner chip, or `?xray=1`) and publishes it as a typed event on the bus rather

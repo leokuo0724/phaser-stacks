@@ -15,6 +15,10 @@ export type GameEvents = {
   "ui:pause": undefined;
   "ui:resume": undefined;
   "ui:quit": undefined;
+  // A pure verb with no noun form: "throw some confetti, now". There is nothing to store —
+  // a `isCelebrating` flag would just need someone to clear it — so it only ever lives as a
+  // one-off moment on the bus. This is the case the event bus exists for (docs Q4).
+  "ui:celebrate": void;
 
   // Phaser → UI
   //   points — the score actually awarded (base × combo multiplier)

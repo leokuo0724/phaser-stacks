@@ -35,8 +35,11 @@ export const gameSlice = createSlice({
   initialState,
   reducers: {
     setDifficulty: (state, action: PayloadAction<Difficulty>) => {
-      // Only meaningful from the menu; ignore mid-round to keep the bridge honest.
-      if (state.status === "idle" || state.status === "over") {
+      // Allowed from the menu (idle/over) AND mid-round while paused — the pause modal's
+      // switcher lets the running scene pick the change up live through its store
+      // `subscribe` (docs Q3). Ignored while actively playing so cadence can't shift
+      // without the user deliberately opening the pause menu.
+      if (state.status !== "playing") {
         state.difficulty = action.payload;
       }
     },

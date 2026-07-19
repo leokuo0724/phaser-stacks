@@ -19,7 +19,7 @@ deliberately tiny — the point is the **architecture**, not the gameplay.
 
 - React mounts the page; **Phaser renders underneath** as a transparent-overlay sibling.
 - **Redux is the single source of truth** for `status / score / timeLeft / highScore /
-  difficulty`. Both layers read it.
+difficulty`. Both layers read it.
 - A **`StoreManager` bridge** lets the (hook-less) Phaser scene read and write that store.
 - A **typed `mitt` event bus** carries one-off moments across the boundary
   (`ui:start`, `game:hit`, …).
@@ -35,6 +35,21 @@ deliberately tiny — the point is the **architecture**, not the gameplay.
   [`shared/rules.ts`](src/shared/rules.ts).
 
 See [`../../docs/architecture.md`](../../docs/architecture.md) for the full rationale.
+
+## Four cross-boundary patterns
+
+Every message crossing the React ↔ Phaser boundary is one of four kinds — a 2×2 of
+**direction** (who fires) × **kind** (a _noun_ that lives in state, or a _verb_ that flashes
+by on the bus). The demo shows all four:
+
+| Pattern                             | Example                                                                     | File                                                                                                           |
+| ----------------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **Q1** Phaser → React, state (noun) | scene dispatches `registerHit` → HUD re-renders score/combo                 | [`game-scene.ts`](src/game/scenes/game-scene.ts) → [`Hud.tsx`](src/react/screens/Hud.tsx)                      |
+| **Q2** Phaser → React, event (verb) | `game:hit` → transient milestone toast (never stored)                       | [`game-scene.ts`](src/game/scenes/game-scene.ts) → [`ComboToast.tsx`](src/react/screens/ComboToast.tsx)        |
+| **Q3** React → Phaser, state (noun) | pause-menu difficulty switch → scene `subscribe` re-arms spawn cadence live | [`DifficultyPicker.tsx`](src/react/ui/DifficultyPicker.tsx) → [`game-scene.ts`](src/game/scenes/game-scene.ts) |
+| **Q4** React → Phaser, event (verb) | 🎉 button emits `ui:celebrate` → confetti burst (no noun form)              | [`Hud.tsx`](src/react/screens/Hud.tsx) → [`game-scene.ts`](src/game/scenes/game-scene.ts)                      |
+
+Turn on **X-Ray** (press `x`) to watch Q2 and Q4 stream through the event-bus log as they fire.
 
 ## Where things live
 
@@ -58,9 +73,9 @@ src/
 │
 ├── react/                   # ── REACT: the product shell ──
 │   ├── PhaserCanvas.tsx     #   owns the Phaser.Game lifecycle (create/destroy)
-│   ├── screens/             #   MainMenu / Hud / PauseModal / GameOverModal
+│   ├── screens/             #   MainMenu / Hud / PauseModal / GameOverModal / ComboToast
 │   ├── hooks/usePulse.ts    #   brief "pop" when a HUD number changes
-│   └── ui/                  #   Button / MuteButton
+│   └── ui/                  #   Button / MuteButton / DifficultyPicker
 │
 ├── debug/xray/              # ── X-RAY: the architecture-debug overlay ──
 │   ├── Xray.tsx             #   owns the on/off state; mounts chip + panels
@@ -101,12 +116,12 @@ four moving parts light up, each in its layer's colour.
 
 <!-- TODO: xray.gif -->
 
-| Colour | Layer | What you see |
-| --- | --- | --- |
-| **Blue** | React (DOM) | An outline + name chip on every UI component (`Hud`, `MainMenu`, `Button`, …). |
-| **Orange** | Phaser (canvas) | A bounding box + type label around every live display object (`Image(target)`). |
-| **Neutral** | Redux (store) | A panel of the game slice's values (`status / score / timeLeft / …`) that flashes on change. |
-| — | Event bus | A live log of every `mitt` event, coloured by direction: `ui:*` blue, `game:*` orange. |
+| Colour      | Layer           | What you see                                                                                 |
+| ----------- | --------------- | -------------------------------------------------------------------------------------------- |
+| **Blue**    | React (DOM)     | An outline + name chip on every UI component (`Hud`, `MainMenu`, `Button`, …).               |
+| **Orange**  | Phaser (canvas) | A bounding box + type label around every live display object (`Image(target)`).              |
+| **Neutral** | Redux (store)   | A panel of the game slice's values (`status / score / timeLeft / …`) that flashes on change. |
+| —           | Event bus       | A live log of every `mitt` event, coloured by direction: `ui:*` blue, `game:*` orange.       |
 
 Each colour maps to one architecture layer, so a glance shows you which layer owns what and —
 in the event log — exactly which messages cross the boundary and in which direction.

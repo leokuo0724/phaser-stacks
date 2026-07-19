@@ -248,6 +248,13 @@ body {
   outline: 2px solid var(--accent-cool);
   outline-offset: 2px;
 }
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  transform: none;
+  box-shadow: none;
+  border-color: var(--color-border);
+}
 
 /* ---- difficulty segmented control ---- */
 
@@ -397,7 +404,43 @@ body {
   opacity: 0.85;
 }
 
+/* ---- combo milestone toast (Q2: driven by the game:hit event, never Redux) ---- */
+
+.combo-toast {
+  position: absolute;
+  top: clamp(6rem, 14vh, 9rem);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.5rem 1.25rem;
+  border-radius: 999px;
+  /* game-side info → the hot/orange voice, matching the combo badge */
+  background: linear-gradient(
+    180deg,
+    rgba(255, 138, 43, 0.32),
+    rgba(255, 138, 43, 0.12)
+  );
+  border: 1px solid rgba(255, 138, 43, 0.7);
+  box-shadow: var(--glow-hot);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(1.1rem, 0.9rem + 1.4vw, 1.6rem);
+  letter-spacing: 0.01em;
+  color: var(--accent-hot-soft);
+  text-shadow: 0 0 14px rgba(255, 138, 43, 0.8);
+  white-space: nowrap;
+  /* purely informational — never intercept taps meant for the canvas */
+  pointer-events: none;
+  animation: toast-in 220ms var(--ease-back);
+}
+
 /* ---- keyframes (transform/opacity/filter only) ---- */
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-8px) scale(0.9);
+  }
+}
 
 @keyframes fade-in {
   from {

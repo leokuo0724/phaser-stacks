@@ -1,3 +1,4 @@
+import type { Unsubscribe } from "@reduxjs/toolkit";
 import Phaser from "phaser";
 
 import { playGameOver, playHit, playSpawn } from "~/shared/audio/sfx";
@@ -6,6 +7,7 @@ import {
   BURST,
   COMBO,
   comboMultiplier,
+  Difficulty,
   DIFFICULTY,
   DifficultyConfig,
   SHAKE,
@@ -46,6 +48,10 @@ export class GameScene extends Phaser.Scene {
   /** Re-armed on every hit; when it fires the combo window has lapsed. */
   private comboWindow?: Phaser.Time.TimerEvent;
   private activeCfg = DIFFICULTY[this.store.select(selectDifficulty)];
+  /** Store `subscribe` teardown. Forgetting to call this on shutdown leaks the listener. */
+  private unsubscribe?: Unsubscribe;
+  /** Last difficulty we acted on — the store fires on *every* change, so we diff. */
+  private lastDifficulty: Difficulty = this.store.select(selectDifficulty);
 
   constructor() {
     super(SCENE_KEYS.GAME);
@@ -61,6 +67,13 @@ export class GameScene extends Phaser.Scene {
     emitter.on("ui:pause", this.handlePause);
     emitter.on("ui:resume", this.handleResume);
     emitter.on("ui:quit", this.handleQuit);
+    emitter.on("ui:celebrate", this.handleCelebrate);
+
+    // React → Phaser over *state* (Q3): subscribe means "something in the store changed".
+    // We don't know what, so we diff the slice we care about (difficulty) and apply it — no
+    // event needed. This is what makes a pause-menu difficulty switch change the live spawn
+    // cadence mid-round. Unsubscribed in cleanup() (forgetting that leaks the listener).
+    this.unsubscribe = this.store.subscribe(this.handleStoreChange);
 
     // A tap that lands on nothing breaks the combo. Phaser reports what the pointer was
     // over; an empty list means empty canvas.
@@ -108,6 +121,52 @@ export class GameScene extends Phaser.Scene {
     if (this.scene.isPaused()) this.scene.resume();
     this.stopRound();
   };
+
+  /**
+   * Q4: a pure verb from React. Fire a few celebratory bursts and return — no store touched.
+   * There is deliberately no `isCelebrating` noun: it would need someone to clear it, whereas
+   * a fire-and-forget moment cleans up after itself. That is exactly why the bus exists.
+   */
+  private handleCelebrate = () => {
+    if (prefersReducedMotion()) return;
+    const { width, height } = this.scale;
+    const bursts = Phaser.Math.Between(3, 5);
+    for (let i = 0; i < bursts; i++) {
+      const x = Phaser.Math.Between(40, width - 40);
+      const y = Phaser.Math.Between(40, height - 40);
+      this.burst.fire(
+        x,
+        y,
+        heatColor(Phaser.Math.Between(1, 6)),
+        BURST.maxCount,
+      );
+    }
+  };
+
+  // --- live difficulty (React → Phaser via store subscribe) ---
+
+  private handleStoreChange = () => {
+    const next = this.store.select(selectDifficulty);
+    if (next === this.lastDifficulty) return; // any state change fires us; only difficulty matters
+    this.lastDifficulty = next;
+    this.applyDifficulty(next);
+  };
+
+  /** Swap the active config and, if a round is live, re-arm the spawn cadence immediately. */
+  private applyDifficulty(difficulty: Difficulty) {
+    this.activeCfg = DIFFICULTY[difficulty];
+    // targetLifetimeMs / pointsPerHit are read from activeCfg at spawn/hit time, so they
+    // take effect on the next target automatically; only the running spawn timer needs a
+    // live re-arm to change the interval mid-round.
+    if (this.spawnTimer) {
+      this.spawnTimer.remove();
+      this.spawnTimer = this.time.addEvent({
+        delay: this.activeCfg.spawnIntervalMs,
+        loop: true,
+        callback: () => this.spawnTarget(this.activeCfg),
+      });
+    }
+  }
 
   // --- game loop ---
 
@@ -290,6 +349,9 @@ export class GameScene extends Phaser.Scene {
     emitter.off("ui:pause", this.handlePause);
     emitter.off("ui:resume", this.handleResume);
     emitter.off("ui:quit", this.handleQuit);
+    emitter.off("ui:celebrate", this.handleCelebrate);
     this.input.off(Phaser.Input.Events.POINTER_DOWN, this.handlePointerDown);
+    this.unsubscribe?.(); // release the store subscription — forgetting this leaks it
+    this.unsubscribe = undefined;
   };
 }
