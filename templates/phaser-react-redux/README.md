@@ -21,8 +21,9 @@ deliberately tiny — the point is the **architecture**, not the gameplay.
 - **Redux is the single source of truth** for `status / score / timeLeft / highScore /
 difficulty`. Both layers read it.
 - A **`StoreManager` bridge** lets the (hook-less) Phaser scene read and write that store.
-- A **typed `mitt` event bus** carries one-off moments across the boundary
-  (`ui:start`, `game:hit`, …).
+- A **typed `mitt` event bus** carries _true one-off moments_ across the boundary
+  (`ui:celebrate`, `game:hit`). Remembered state — including status transitions — goes
+  through the store instead (see "store-first" below).
 - 60fps data (sprite positions, tweens, timers) **stays inside Phaser** and never touches
   Redux.
 - **Juice, code-only (zero image/audio assets):** particle bursts + camera-shake +
@@ -42,14 +43,26 @@ Every message crossing the React ↔ Phaser boundary is one of four kinds — a 
 **direction** (who fires) × **kind** (a _noun_ that lives in state, or a _verb_ that flashes
 by on the bus). The demo shows all four:
 
-| Pattern                             | Example                                                                     | File                                                                                                           |
-| ----------------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| **Q1** Phaser → React, state (noun) | scene dispatches `registerHit` → HUD re-renders score/combo                 | [`game-scene.ts`](src/game/scenes/game-scene.ts) → [`Hud.tsx`](src/react/screens/Hud.tsx)                      |
-| **Q2** Phaser → React, event (verb) | `game:hit` → transient milestone toast (never stored)                       | [`game-scene.ts`](src/game/scenes/game-scene.ts) → [`ComboToast.tsx`](src/react/screens/ComboToast.tsx)        |
-| **Q3** React → Phaser, state (noun) | pause-menu difficulty switch → scene `subscribe` re-arms spawn cadence live | [`DifficultyPicker.tsx`](src/react/ui/DifficultyPicker.tsx) → [`game-scene.ts`](src/game/scenes/game-scene.ts) |
-| **Q4** React → Phaser, event (verb) | 🎉 button emits `ui:celebrate` → confetti burst (no noun form)              | [`Hud.tsx`](src/react/screens/Hud.tsx) → [`game-scene.ts`](src/game/scenes/game-scene.ts)                      |
+| Pattern                             | Example                                                                             | File                                                                                                           |
+| ----------------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **Q1** Phaser → React, state (noun) | scene dispatches `registerHit` → HUD re-renders score/combo                         | [`game-scene.ts`](src/game/scenes/game-scene.ts) → [`Hud.tsx`](src/react/screens/Hud.tsx)                      |
+| **Q2** Phaser → React, event (verb) | `game:hit` → transient milestone toast (never stored)                               | [`game-scene.ts`](src/game/scenes/game-scene.ts) → [`ComboToast.tsx`](src/react/screens/ComboToast.tsx)        |
+| **Q3** React → Phaser, state (noun) | pause-menu difficulty switch → scene `subscribe` re-arms spawn cadence live         | [`DifficultyPicker.tsx`](src/react/ui/DifficultyPicker.tsx) → [`game-scene.ts`](src/game/scenes/game-scene.ts) |
+| **Q4** React → Phaser, event (verb) | 🎉 button emits `ui:celebrate` → confetti burst (the _only_ bus verb, no noun form) | [`Hud.tsx`](src/react/screens/Hud.tsx) → [`game-scene.ts`](src/game/scenes/game-scene.ts)                      |
 
 Turn on **X-Ray** (press `x`) to watch Q2 and Q4 stream through the event-bus log as they fire.
+
+### Store-first: the status family travels through state, not the bus
+
+The criterion is **該記住的進 store，一次性的走 event bus** — state worth remembering goes to
+the store; only true one-shots take the bus. Round start / pause / resume / quit are _status
+transitions_, and a status is remembered state, so they are dispatched to Redux (`startGame`,
+`pauseGame`, …); the scene drives its round lifecycle by diffing `status` inside its store
+subscription. This buys three debug wins: one funnel (a single breakpoint in the scene's
+store-change handler catches every React→Phaser flow), full Redux DevTools visibility of every
+transition, and reproducibility from a state snapshot. Only `ui:celebrate` — a pure verb with
+no noun form — is left on the bus. The intent-carrying-events style (a `ui:start` verb the
+scene listens for) is a valid alternative; this template picks store-first.
 
 ## Where things live
 
@@ -100,13 +113,16 @@ src/
 
 ## The data flow in one tap
 
-1. **Start** (UI) → `dispatch(startGame())` then `emitter.emit("ui:start")`.
-2. `GameScene` hears `ui:start`, reads `difficulty` via the bridge, starts its timers.
+1. **Start** (UI) → `dispatch(startGame())`; status goes `idle → playing`.
+2. `GameScene`'s store subscription sees the `idle → playing` transition, reads `difficulty`
+   via the bridge, and starts its timers. (No `ui:start` event — the status change is the
+   signal.)
 3. Tap a target (canvas) → scene `dispatch(registerHit())` + `emitter.emit("game:hit")`.
 4. The HUD re-renders the score/combo from Redux; the scene fires the particle burst and a
    pooled `+N` pop on the canvas from the same moment.
-5. Countdown hits 0 → scene `dispatch(endGame())` + `emitter.emit("game:over")` → the UI
-   shows the game-over screen because `status === "over"`.
+5. Countdown hits 0 → scene `dispatch(endGame())`; status goes `playing → over` and the UI
+   shows the game-over screen because `status === "over"`. (Again no event: the scene reacts
+   to its own transition as an idempotent no-op, having already stopped the round.)
 
 ## X-Ray Mode — make the architecture visible
 

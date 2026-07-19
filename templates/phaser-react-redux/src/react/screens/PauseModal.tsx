@@ -1,4 +1,3 @@
-import { emitter } from "~/shared/event-bus";
 import { quitToMenu, resumeGame } from "~/store/game/slice";
 import { useAppDispatch } from "~/store/hooks";
 
@@ -9,13 +8,13 @@ export function PauseModal() {
   const dispatch = useAppDispatch();
 
   const handleResume = () => {
+    // Store-first: status paused → playing; the scene unfreezes off that transition.
     dispatch(resumeGame());
-    emitter.emit("ui:resume");
   };
 
   const handleQuit = () => {
+    // Store-first: status → idle; the scene tears the round down off that transition.
     dispatch(quitToMenu());
-    emitter.emit("ui:quit");
   };
 
   return (

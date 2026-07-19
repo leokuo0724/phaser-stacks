@@ -1,4 +1,3 @@
-import { emitter } from "~/shared/event-bus";
 import { startGame } from "~/store/game/slice";
 import { useAppDispatch } from "~/store/hooks";
 
@@ -9,9 +8,9 @@ export function MainMenu() {
   const dispatch = useAppDispatch();
 
   const handleStart = () => {
-    // 1. set state, then 2. fire the moment that tells Phaser to begin.
+    // Store-first: just move status idle → playing. The scene watches the store and starts
+    // the round off that transition — no separate "begin" event to fire and keep in sync.
     dispatch(startGame());
-    emitter.emit("ui:start");
   };
 
   return (

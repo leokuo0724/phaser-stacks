@@ -94,18 +94,28 @@ The UI side never uses the bridge; it binds with the framework's idiomatic API
 ## 5. The event bus (verbs, not nouns)
 
 Some things crossing the boundary are **moments**, not state: "the player hit a target",
-"the round is over", "start now". Putting these in the store is awkward (you'd set a flag
-and immediately clear it). Instead, use a tiny typed pub/sub:
+"throw confetti now". Putting these in the store is awkward (you'd set a flag and immediately
+clear it). Instead, use a tiny typed pub/sub:
 
 ```ts
 emitter.emit("game:hit", { x, y }); // Phaser → UI (play a sound, pop an animation)
-emitter.emit("ui:start"); // UI → Phaser (begin spawning)
+emitter.emit("ui:celebrate"); // UI → Phaser (confetti burst — a pure verb, no noun form)
 ```
 
 Direction is by convention in the event name:
 
-- `ui:*` — UI → Phaser control signals (`start`, `pause`, `resume`, `quit`).
-- `game:*` — Phaser → UI notifications (`hit`, `over`).
+- `ui:*` — UI → Phaser control signals (here just `celebrate`).
+- `game:*` — Phaser → UI notifications (`hit`).
+
+The criterion is **該記住的進 store，一次性的走 event bus**: state worth remembering →
+the store; genuine one-off moments → the bus. This is why "begin the round", "pause", and
+"game over" are **not** events here even though they read like commands — they are _status
+transitions_, i.e. remembered state, so they go through the store (`startGame` / `pauseGame` /
+`endGame`) and the scene drives its lifecycle by diffing `status` in its store subscription.
+That keeps one funnel to breakpoint, puts every transition in Redux DevTools, and makes state
+snapshots reproducible. The intent-carrying-events style (a `ui:start` verb the scene hears) is
+a valid alternative; this template picks store-first. Only `ui:celebrate` — with no noun to
+store — remains a bus verb.
 
 Event payloads are typed in one place (`shared/event-keys.ts`), so both sides share a
 checked contract.
@@ -127,20 +137,22 @@ as an event (`ui:celebrate` → a confetti burst with no noun to store).
 
 ## 6. Putting it together — a frame in the life of a tap
 
-1. User taps **Start** in the menu (UI). It writes `status = playing` to the store, then
-   `emitter.emit("ui:start")`.
-2. The `GameScene` hears `ui:start`, reads `difficulty` via the bridge, and starts its
-   spawn + countdown timers (game loop).
+1. User taps **Start** in the menu (UI). It dispatches `startGame()`, writing
+   `status = playing` to the store.
+2. The `GameScene`'s store subscription sees the `idle → playing` transition, reads
+   `difficulty` via the bridge, and starts its spawn + countdown timers (game loop).
 3. User taps a target on the canvas (Phaser input). The scene writes the score increase to
    the store and `emitter.emit("game:hit", { x, y })`.
 4. The HUD (UI) re-renders the new score from the store; a hit sound plays in response to
    the event.
-5. The countdown reaches zero. The scene ends the round in the store (which also updates
-   the high score) and `emitter.emit("game:over")`.
+5. The countdown reaches zero. The scene ends the round in the store with `endGame()` (which
+   also updates the high score); status goes `playing → over`. The scene's own subscription
+   sees that transition as an idempotent no-op — it already stopped its timers.
 6. The UI sees `status === "over"` and renders the game-over modal.
 
-Notice the symmetry: **state flows through the store, moments flow through the bus, and
-the canvas lifecycle is owned by exactly one component.**
+Notice the symmetry: **remembered state (including status transitions) flows through the
+store, true one-off moments flow through the bus, and the canvas lifecycle is owned by
+exactly one component.**
 
 ## 7. Trade-offs vs. Unity / Godot
 

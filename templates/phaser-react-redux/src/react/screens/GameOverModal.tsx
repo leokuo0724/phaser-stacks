@@ -1,4 +1,3 @@
-import { emitter } from "~/shared/event-bus";
 import { selectHighScore, selectScore } from "~/store/game/selectors";
 import { quitToMenu, startGame } from "~/store/game/slice";
 import { useAppDispatch, useAppSelector } from "~/store/hooks";
@@ -12,13 +11,13 @@ export function GameOverModal() {
   const isBest = score > 0 && score >= highScore;
 
   const handlePlayAgain = () => {
+    // Store-first: status over → playing; the scene restarts the round off that transition.
     dispatch(startGame());
-    emitter.emit("ui:start");
   };
 
   const handleMenu = () => {
+    // Store-first: status → idle; the scene tears the round down off that transition.
     dispatch(quitToMenu());
-    emitter.emit("ui:quit");
   };
 
   return (

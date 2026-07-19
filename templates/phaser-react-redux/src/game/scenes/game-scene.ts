@@ -15,9 +15,16 @@ import {
 import {
   selectCombo,
   selectDifficulty,
+  selectStatus,
   selectTimeLeft,
 } from "~/store/game/selectors";
-import { endGame, registerHit, resetCombo, tick } from "~/store/game/slice";
+import {
+  endGame,
+  type GameStatus,
+  registerHit,
+  resetCombo,
+  tick,
+} from "~/store/game/slice";
 
 import { SCENE_KEYS, TEXTURE_KEYS } from "../constants";
 import { HitBurst } from "../juice/hit-burst";
@@ -35,8 +42,15 @@ import { prefersReducedMotion } from "../util/motion";
  * live in Redux and the UI renders them.
  *
  * It talks to the rest of the app through exactly two channels:
- *   • StoreManager  — read difficulty/combo, write score/combo/tick/end   (state, nouns)
- *   • emitter       — receive ui:* control, send game:* events            (moments, verbs)
+ *   • StoreManager  — read difficulty/combo/status, write score/combo/tick/end, and drive
+ *                     the round lifecycle off `status` transitions        (state, nouns)
+ *   • emitter       — receive `ui:celebrate`, send `game:hit`             (moments, verbs)
+ *
+ * Store-first lifecycle: round start/pause/resume/quit are *status changes*, i.e. remembered
+ * state, so they arrive through the store subscription — not the bus. Everything the scene
+ * reacts to funnels through one handler (`handleStoreChange`): a single breakpoint, and every
+ * transition is visible in Redux DevTools and reproducible from a state snapshot. The bus is
+ * reserved for true one-shots that have no noun form (docs/architecture.md §5).
  */
 export class GameScene extends Phaser.Scene {
   private store = StoreManager.instance;
@@ -52,6 +66,8 @@ export class GameScene extends Phaser.Scene {
   private unsubscribe?: Unsubscribe;
   /** Last difficulty we acted on — the store fires on *every* change, so we diff. */
   private lastDifficulty: Difficulty = this.store.select(selectDifficulty);
+  /** Last status we drove the scene to — same reason: diff to catch true transitions. */
+  private prevStatus: GameStatus = this.store.select(selectStatus);
 
   constructor() {
     super(SCENE_KEYS.GAME);
@@ -62,17 +78,15 @@ export class GameScene extends Phaser.Scene {
     this.popups = new PopupPool(this);
     this.burst = new HitBurst(this);
 
-    // UI → Phaser control signals. Bound once; cleaned up on shutdown.
-    emitter.on("ui:start", this.handleStart);
-    emitter.on("ui:pause", this.handlePause);
-    emitter.on("ui:resume", this.handleResume);
-    emitter.on("ui:quit", this.handleQuit);
+    // UI → Phaser, the ONE remaining bus verb: a pure "throw confetti" moment (Q4).
+    // Bound once; cleaned up on shutdown.
     emitter.on("ui:celebrate", this.handleCelebrate);
 
-    // React → Phaser over *state* (Q3): subscribe means "something in the store changed".
-    // We don't know what, so we diff the slice we care about (difficulty) and apply it — no
-    // event needed. This is what makes a pause-menu difficulty switch change the live spawn
-    // cadence mid-round. Unsubscribed in cleanup() (forgetting that leaks the listener).
+    // React → Phaser over *state*: subscribe means "something in the store changed". We
+    // don't know what, so we diff the slices we care about and apply them — no events. This
+    // one funnel drives BOTH the live difficulty (Q3) and the whole round lifecycle
+    // (start/pause/resume/quit as `status` transitions). Unsubscribed in cleanup()
+    // (forgetting that leaks the listener).
     this.unsubscribe = this.store.subscribe(this.handleStoreChange);
 
     // A tap that lands on nothing breaks the combo. Phaser reports what the pointer was
@@ -85,9 +99,11 @@ export class GameScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.DESTROY, this.cleanup);
   }
 
-  // --- control handlers (arrow fns so `this` binds and we can `off` them) ---
+  // --- round lifecycle (driven by `status` transitions, see handleStoreChange) ---
 
-  private handleStart = () => {
+  /** Start (or restart) a round: reset timers/combo and spawn. Shared by a fresh start and
+   *  a play-again, since both are just "arrive in `playing` with a clean slate". */
+  private startRound() {
     this.clearTargets();
     this.activeCfg = DIFFICULTY[this.store.select(selectDifficulty)];
 
@@ -107,20 +123,24 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.spawnTarget(this.activeCfg); // one immediately so the round starts with feedback
-  };
+  }
 
-  private handlePause = () => {
+  /** Freeze the scene: timers and physics halt, targets stay on screen behind the modal. */
+  private pauseRound() {
     if (!this.scene.isPaused()) this.scene.pause();
-  };
+  }
 
-  private handleResume = () => {
+  /** Unfreeze only — the round resumes exactly where it left off. A difficulty change made
+   *  while paused was already applied live by the difficulty diff, so nothing to re-arm. */
+  private resumeRound() {
     if (this.scene.isPaused()) this.scene.resume();
-  };
+  }
 
-  private handleQuit = () => {
+  /** Tear the round down (quit to menu). Unpause first so timers can be cleanly removed. */
+  private teardownRound() {
     if (this.scene.isPaused()) this.scene.resume();
     this.stopRound();
-  };
+  }
 
   /**
    * Q4: a pure verb from React. Fire a few celebratory bursts and return — no store touched.
@@ -143,14 +163,62 @@ export class GameScene extends Phaser.Scene {
     }
   };
 
-  // --- live difficulty (React → Phaser via store subscribe) ---
+  // --- the single store funnel (React → Phaser via store subscribe) ---
 
+  /**
+   * Fired on *every* store change. We don't know what changed, so we diff each slice the
+   * scene cares about. This is the one funnel to breakpoint when debugging any React→Phaser
+   * flow: difficulty (live cadence) and status (round lifecycle) both land here.
+   */
   private handleStoreChange = () => {
-    const next = this.store.select(selectDifficulty);
-    if (next === this.lastDifficulty) return; // any state change fires us; only difficulty matters
-    this.lastDifficulty = next;
-    this.applyDifficulty(next);
+    // 1) live difficulty — re-arm spawn cadence mid-round when it changes.
+    const nextDifficulty = this.store.select(selectDifficulty);
+    if (nextDifficulty !== this.lastDifficulty) {
+      this.lastDifficulty = nextDifficulty;
+      this.applyDifficulty(nextDifficulty);
+    }
+
+    // 2) round lifecycle — drive start/pause/resume/quit off the status transition.
+    const nextStatus = this.store.select(selectStatus);
+    if (nextStatus !== this.prevStatus) {
+      const prevStatus = this.prevStatus;
+      this.prevStatus = nextStatus;
+      this.applyStatusTransition(prevStatus, nextStatus);
+    }
   };
+
+  /**
+   * The exhaustive status → status transition map. Store-first means these are the ONLY
+   * entry points to the round lifecycle; there is no parallel event path to keep in sync.
+   */
+  private applyStatusTransition(prev: GameStatus, next: GameStatus) {
+    // Quit to menu is reachable from any prior status, so handle it before the pair switch.
+    if (next === "idle") {
+      this.teardownRound();
+      return;
+    }
+
+    switch (`${prev}->${next}` as const) {
+      case "idle->playing": // fresh start from the menu
+      case "over->playing": // play again — same reset+spawn path as a fresh start
+        this.startRound();
+        break;
+      case "paused->playing": // resume — unfreeze only, targets/timers untouched
+        this.resumeRound();
+        break;
+      case "playing->paused": // pause — freeze the scene
+        this.pauseRound();
+        break;
+      case "playing->over": // scene-originated: handleTick already stopped the round and
+        break; //             played the game-over juice. Idempotent no-op; the store change
+      //                    is just the UI catching up to what the scene already did.
+      default:
+        // Exhaustive-with-warn: any transition we didn't plan for surfaces as a visible
+        // warning instead of a silent no-op — the teaching habit that turns "nothing
+        // happened" bugs into a line in the console pointing at the exact prev→next.
+        console.warn("unhandled status transition", prev, next);
+    }
+  }
 
   /** Swap the active config and, if a round is live, re-arm the spawn cadence immediately. */
   private applyDifficulty(difficulty: Difficulty) {
@@ -173,10 +241,14 @@ export class GameScene extends Phaser.Scene {
   private handleTick = () => {
     this.store.dispatch(tick());
     if (this.store.select(selectTimeLeft) <= 0) {
+      // Scene-originated game over: stop the round and play juice, then record the status
+      // change. `endGame` flips status playing → over, which re-enters handleStoreChange;
+      // that `playing->over` transition is a deliberate no-op (the work is already done
+      // here). No `game:over` event: the status change IS the signal, and the UI reacts to
+      // `status === "over"`.
       this.stopRound();
-      this.store.dispatch(endGame());
       this.playGameOverJuice();
-      emitter.emit("game:over");
+      this.store.dispatch(endGame());
     }
   };
 
@@ -345,10 +417,6 @@ export class GameScene extends Phaser.Scene {
   }
 
   private cleanup = () => {
-    emitter.off("ui:start", this.handleStart);
-    emitter.off("ui:pause", this.handlePause);
-    emitter.off("ui:resume", this.handleResume);
-    emitter.off("ui:quit", this.handleQuit);
     emitter.off("ui:celebrate", this.handleCelebrate);
     this.input.off(Phaser.Input.Events.POINTER_DOWN, this.handlePointerDown);
     this.unsubscribe?.(); // release the store subscription — forgetting this leaks it

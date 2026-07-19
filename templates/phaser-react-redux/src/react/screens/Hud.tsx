@@ -29,8 +29,8 @@ export function Hud() {
   const comboPulse = usePulse(combo);
 
   const handlePause = () => {
+    // Store-first: flip status playing → paused; the scene freezes off that transition.
     dispatch(pauseGame());
-    emitter.emit("ui:pause");
   };
 
   // Q4: fire a pure verb at Phaser. No state changes — just a moment on the bus, which the
